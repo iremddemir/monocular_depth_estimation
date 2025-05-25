@@ -30,6 +30,21 @@ from transformers import CLIPVisionModel, CLIPImageProcessor
 from vggt.models.vggt import VGGT
 from vggt.utils.load_fn import load_and_preprocess_images
 
+import os
+import random
+
+def seed_everything(seed: int):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)   # if using multi-GPU
+
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False  # for full determinism
+
+    os.environ["PYTHONHASHSEED"] = str(seed)
+
+seed_everything(1881)
 
 def _freeze(module: nn.Module) -> nn.Module:
     module.eval()
@@ -84,10 +99,10 @@ class DepthRefinementPipeline(DiffusionPipeline):
             nn.SiLU(),
         )
 
-        for m in self.semantic_adapter.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_normal_(m.weight, gain=0.1)
-                nn.init.constant_(m.bias, 0)
+        # for m in self.semantic_adapter.modules():
+        #     if isinstance(m, nn.Linear):
+        #         nn.init.xavier_normal_(m.weight, gain=0.1)
+        #         nn.init.constant_(m.bias, 0)
 
         # Dual conditional U‑Nets
         in_ch = 3 + 1 + 1  # RGB + D0 + conf
@@ -124,23 +139,23 @@ class DepthRefinementPipeline(DiffusionPipeline):
         )
 
 
-        def init_weights(m):
-            if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d)):
-                nn.init.kaiming_normal_(m.weight, a=0.1)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.GroupNorm):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+        # def init_weights(m):
+        #     if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d)):
+        #         nn.init.kaiming_normal_(m.weight, a=0.1)
+        #         if m.bias is not None:
+        #             nn.init.constant_(m.bias, 0)
+        #     elif isinstance(m, nn.GroupNorm):
+        #         nn.init.constant_(m.weight, 1)
+        #         nn.init.constant_(m.bias, 0)
 
-        self.tex_unet.apply(init_weights)
-        self.sem_unet.apply(init_weights)
+        # self.tex_unet.apply(init_weights)
+        # self.sem_unet.apply(init_weights)
 
         # Confidence‑aware fusion
         self.gate_conv = gate_conv or nn.Conv2d(2, 1, 3, padding=1)
 
-        nn.init.constant_(self.gate_conv.bias, 0)
-        nn.init.constant_(self.gate_conv.weight, 0)
+        # nn.init.constant_(self.gate_conv.bias, 0)
+        # nn.init.constant_(self.gate_conv.weight, 0)
 
         self.register_modules(
             clip_model=self.clip_model,
@@ -214,19 +229,19 @@ class DepthRefinementPipeline(DiffusionPipeline):
         if not torch.isfinite(d_tex).all():
             print("d_tex has inf or NaN")
 
-        def normalize_residual(res: torch.Tensor, eps=1e-6) -> torch.Tensor:
-            """Normalize to zero mean, unit std per batch."""
-            mean = res.mean(dim=[2, 3], keepdim=True)
-            std  = res.std(dim=[2, 3], keepdim=True).clamp(min=eps)
-            return (res - mean) / std
+        # def normalize_residual(res: torch.Tensor, eps=1e-6) -> torch.Tensor:
+        #     """Normalize to zero mean, unit std per batch."""
+        #     mean = res.mean(dim=[2, 3], keepdim=True)
+        #     std  = res.std(dim=[2, 3], keepdim=True).clamp(min=eps)
+        #     return (res - mean) / std
 
-        # Normalize before scaling
-        d_sem_norm = normalize_residual(d_sem)
-        d_tex_norm = normalize_residual(d_tex)
+        # # Normalize before scaling
+        # d_sem_norm = normalize_residual(d_sem)
+        # d_tex_norm = normalize_residual(d_tex)
 
         max_change = d0.abs().max() * 0.1  # 10% of coarse depth range
-        d_sem = max_change * torch.tanh(d_sem_norm)
-        d_tex = max_change * torch.tanh(d_tex_norm)
+        d_sem = max_change * torch.tanh(d_sem)
+        d_tex = max_change * torch.tanh(d_tex)
 
         # ------------------------------------------------------------
         # 6. Confidence-aware fusion
@@ -397,14 +412,24 @@ def train_refiner(
                         d_coarse = joint_bilateral(d_coarse, rgb_t)
                         np.save(coarse_dir / fname, d_coarse)
 
+                torch.save({
+                    "epoch": epoch,
+                    "tex_unet": pipe.tex_unet.state_dict(),
+                    "sem_unet": pipe.sem_unet.state_dict(),
+                    "gate_conv": pipe.gate_conv.state_dict(),
+                    "semantic_adapter": pipe.semantic_adapter.state_dict(),
+                    "opt": opt.state_dict(),
+                }, ckpt_dir / f"refiner_ep{i:06d}.pt")
+                print("✓ saved checkpoint")
+
                 print(f"Dumped test predictions to {step_dir}")
 
 
-        torch.save({"epoch": epoch,
-                    "model": pipe.state_dict(),
-                    "opt"  : opt.state_dict()},
-                   ckpt_dir / f"refiner_ep{epoch:02d}.pt")
-        print("✓ saved checkpoint")
+        # torch.save({"epoch": epoch,
+        #             "model": pipe.state_dict(),
+        #             "opt"  : opt.state_dict()},
+        #            ckpt_dir / f"refiner_ep{epoch:02d}.pt")
+        # print("✓ saved checkpoint")
 
 
 
@@ -421,5 +446,5 @@ if __name__ == "__main__":
     train_refiner(pipe,
                   train_loader=train_loader,
                   test_loader=test_loader,
-                  epochs=1000,
+                  epochs=1,
                   lr=2e-4)
