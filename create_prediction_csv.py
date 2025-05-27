@@ -4,6 +4,9 @@ import pandas as pd
 import base64
 import zlib
 from tqdm import tqdm
+from utils.helpers import load_config
+# Load configuration
+config = load_config()
 
 # Path definitions
 data_root = 'ethz-cil-monocular-depth-estimation-2025'

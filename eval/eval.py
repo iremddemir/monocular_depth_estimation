@@ -12,7 +12,7 @@ config = load_config()
 mc_samples = config.eval.mc_samples
 deep_supervision = config.model.deep_supervision
 
-def evaluate_model(model, val_loader, device, results_dir, mc_predictions=False):
+def evaluate_model(model, val_loader, device, results_dir, mc_predictions=False, postprocess=True):
     """Evaluate the model and compute metrics on validation set"""
     model.eval()
     

@@ -5,7 +5,6 @@ from utils.helpers import ensure_dir
 import os
 import numpy as np
 import random
-import cv2
 from utils.helpers import load_config, predict_mc_dropout, visualize_prediction, postprocess_depth
 
 config = load_config()
