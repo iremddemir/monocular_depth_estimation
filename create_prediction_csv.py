@@ -4,10 +4,13 @@ import pandas as pd
 import base64
 import zlib
 from tqdm import tqdm
+from utils.helpers import load_config
+# Load configuration 
+config = load_config()
 
 # Path definitions
 data_root = 'ethz-cil-monocular-depth-estimation-2025'
-model_name = 'DropoutUNet-p01'
+model_name = config.model.model_name
 output_dir = os.path.join(data_root, model_name)
 predictions_dir = os.path.join(output_dir, 'predictions')
 test_list_file = os.path.join(data_root, 'test_list.txt')

@@ -14,7 +14,7 @@ data:
 
 # Training settings
 train:
-  num_epochs: 20
+  num_epochs: 10
   learning_rate: 0.00001
   weight_decay: 0.0001
   mc_training: False

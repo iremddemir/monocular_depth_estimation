@@ -2,6 +2,7 @@ import torch
 from tqdm import tqdm
 import numpy as np
 import os
+import sys
 import matplotlib.pyplot as plt
 import torch.nn as nn
 from utils.helpers import load_config, predict_mc_dropout, ensure_dir
@@ -28,7 +29,7 @@ def evaluate_model(model, val_loader, device, results_dir, mc_predictions=False)
     save_uncertainty_maps = getattr(config.eval, "save_uncertainty_maps", False)
 
     with torch.no_grad():
-        for inputs, targets, filenames in tqdm(val_loader, desc="Evaluating"):
+        for inputs, targets, filenames in tqdm(val_loader, desc="Evaluating", dynamic_ncols=True, disable=not sys.stdout.isatty()):
             inputs, targets = inputs.to(device), targets.to(device)
             batch_size = inputs.size(0)
             total_samples += batch_size

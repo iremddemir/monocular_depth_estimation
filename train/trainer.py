@@ -1,6 +1,7 @@
 from tqdm import tqdm
 import torch
 import os
+import sys
 from utils.helpers import aleatoric_loss, compute_weight_decay, load_config, deep_supervision_loss, ensure_dir, enable_dropout, compute_smoothness_loss, normalize_for_vis
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.utils as vutils
@@ -36,7 +37,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
         model.train()
         train_loss = 0.0
 
-        for i, (inputs, targets, _) in enumerate(tqdm(train_loader, desc="Training")):
+        for i, (inputs, targets, _) in enumerate(tqdm(train_loader, desc="Training", dynamic_ncols=True, disable=not sys.stdout.isatty())):
             inputs, targets = inputs.to(device), targets.to(device)
 
             optimizer.zero_grad()
@@ -86,7 +87,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
         val_loss = 0.0
 
         with torch.no_grad():
-            for inputs, targets, _ in tqdm(val_loader, desc="Validation"):
+            for inputs, targets, _ in tqdm(val_loader, desc="Validation", dynamic_ncols=True, disable=not sys.stdout.isatty()):
                 inputs, targets = inputs.to(device), targets.to(device)               
                 loss = 0
 
@@ -117,25 +118,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
         # Log validation loss to TensorBoard
         writer.add_scalar("Loss/Validation", val_loss, epoch)
 
-        # Save the best model
-        if val_loss < best_val_loss:
-            patience_counter = 0
-            best_val_loss = val_loss
-            best_epoch = epoch
-            torch.save(model.state_dict(), os.path.join(results_dir, 'best_model.pth'))
-            print(f"New best model saved at epoch {epoch+1} with validation loss: {val_loss:.4f}")
-        # Early stopping logic
-        else:
-            print(f"No improvement in validation loss at epoch {epoch+1}. Best so far: {best_val_loss:.4f} at epoch {best_epoch+1}")
-            patience_counter += 1
-            print(f"Early stopping counter: {patience_counter}/{patience_limit}")
-            if patience_counter >= patience_limit:
-                print(f"\nEarly stopping triggered. Best model was from epoch {best_epoch+1} with validation loss: {best_val_loss:.4f}")
-                writer.close()
-                model.load_state_dict(torch.load(os.path.join(results_dir, 'best_model.pth')))
-                return model
-
-        if (epoch+1) % 5 == 0:
+        if ((epoch+1) % 5 == 0 and epoch < num_epochs):
             # strongly evaluate the model every 5 epochs
             print("Evaluating model on validation set...")
             metrics = evaluate_model(model, val_loader, device, results_dir, mc_predictions=mc_dropout)
@@ -169,6 +152,24 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
             checkpoint_path = os.path.join(results_dir, f"checkpoint_epoch_{epoch+1}.pth")
             torch.save(model.state_dict(), checkpoint_path)
             print(f"Checkpoint saved at {checkpoint_path}")
+
+        # Save the best model
+        if val_loss < best_val_loss:
+            patience_counter = 0
+            best_val_loss = val_loss
+            best_epoch = epoch
+            torch.save(model.state_dict(), os.path.join(results_dir, 'best_model.pth'))
+            print(f"New best model saved at epoch {epoch+1} with validation loss: {val_loss:.4f}")
+        # Early stopping logic
+        else:
+            print(f"No improvement in validation loss at epoch {epoch+1}. Best so far: {best_val_loss:.4f} at epoch {best_epoch+1}")
+            patience_counter += 1
+            print(f"Early stopping counter: {patience_counter}/{patience_limit}")
+            if patience_counter >= patience_limit:
+                print(f"\nEarly stopping triggered. Best model was from epoch {best_epoch+1} with validation loss: {best_val_loss:.4f}")
+                writer.close()
+                model.load_state_dict(torch.load(os.path.join(results_dir, 'best_model.pth')))
+                return model
 
 
     print(f"\nBest model was from epoch {best_epoch+1} with validation loss: {best_val_loss:.4f}")

@@ -182,6 +182,34 @@ def laplacian_aleatoric_loss(pred, target):
 
     return mean_loss
 
+def scale_invariant_laplacian_aleatoric_loss(pred, target, clamp_log_sigma=True):
+    """
+    pred: tensor of shape [B, 2, H, W] where:
+        pred[:, 0:1, ...] = predicted depth
+        pred[:, 1:2, ...] = predicted log_sigma in log-depth space
+    target: ground truth depth, shape [B, 1, H, W]
+    """
+    eps = 1e-6
+    pred_mean = pred[:, 0:1, :, :]
+    log_sigma = pred[:, 1:2, :, :]
+
+    if clamp_log_sigma:
+        log_sigma = torch.clamp(log_sigma, min=-3.0, max=3.0)
+
+    # Log-depth space
+    log_pred = torch.log(pred_mean + eps)
+    log_target = torch.log(target + eps)
+
+    d = log_pred - log_target
+    mu = torch.mean(d, dim=[1, 2, 3], keepdim=True)  # per-image mean
+    d_centered = d - mu
+
+    sigma = torch.exp(log_sigma)
+    loss = torch.abs(d_centered) / sigma + log_sigma
+
+    return loss.mean()
+
+
 
 def compute_weight_norm(model):
     """Compute the squared L2 norm of all model parameters (||θ||²)."""

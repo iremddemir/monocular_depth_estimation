@@ -8,7 +8,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 import matplotlib.pyplot as plt
 from data.loader import DepthDataset, get_dataloaders, get_transforms
-from utils.helpers import ensure_dir, target_transform, load_config, aleatoric_loss, laplacian_aleatoric_loss, deep_supervision_loss
+from utils.helpers import ensure_dir, target_transform, load_config, aleatoric_loss, laplacian_aleatoric_loss, deep_supervision_loss, scale_invariant_laplacian_aleatoric_loss
 from models.AleatoricUNet import SimpleUNet, AleatoricUNet
 from models.DropoutUNet import DropoutUNet, DropoutUNet_ResNet50, DropoutUNet_ResNet101
 from models.AttentionUNet import AttentionUNet, AttentionUNet_ResNet101
@@ -91,7 +91,7 @@ def main():
     shutil.copyfile(config_path, destination_path)
 
     # Training parameters
-    criterion = laplacian_aleatoric_loss
+    criterion = scale_invariant_laplacian_aleatoric_loss
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
     if MC_TRAINING:
@@ -103,26 +103,28 @@ def main():
         print(f"Loading checkpoint from {checkpoint_path}")
         model.load_state_dict(torch.load(checkpoint_path))
 
-    """
+    
     # use best sirmse model if available
-    checkpoint_path = os.path.join(results_dir, 'best_model_sirmse.pth')
+    checkpoint_path = os.path.join(results_dir, 'checkpoint_epoch_5 (0.0741).pth')
     if os.path.exists(checkpoint_path):
         print(f"Loading checkpoint from {checkpoint_path}")
         model.load_state_dict(torch.load(checkpoint_path))
-    """
     
+    """
     # Train the model
     print("Starting training...")
     model = train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, NUM_EPOCHS, DEVICE, results_dir, mc_training=MC_TRAINING)
     
+    
     # Load the best model for evaluation
     model.load_state_dict(torch.load(os.path.join(results_dir, 'best_model.pth')))
     print("Loading the best model for evaluation...")
-
+    
+    
     # Evaluate the model on validation set
     print("Evaluating model on validation set...")
     metrics = evaluate_model(model, val_loader, DEVICE, results_dir, mc_predictions=MC_DROPOUT)
-    
+
     # Print metrics
     print("\nValidation Metrics:")
     for name, value in metrics.items():
@@ -132,6 +134,8 @@ def main():
     with open(os.path.join(results_dir, 'validation_metrics.txt'), 'w') as f:
         for name, value in metrics.items():
             f.write(f"{name}: {value:.4f}\n")
+
+    """
 
     # Generate predictions for the test set
     print("Generating predictions for test set...")
