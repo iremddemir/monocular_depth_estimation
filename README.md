@@ -9,7 +9,7 @@ Our model fuses complementary information from two branches:
 These branches produce residual corrections over VGGT outputs, which are combined using a confidence-aware gating mechanism. The repository also includes implementations of classical filtering techniques (bilateral, joint bilateral, anisotropic diffusion) for comparison.
 
 <p align="center">
-  <img src="assets/dual_unet_diagram.png" alt="Dual U-Net Pipeline" width="20%">
+  <img src="assets/dual_unet_diagram.png" alt="Dual U-Net Pipeline" width="40%">
 </p>
 
 ---
@@ -27,13 +27,13 @@ conda activate monodepth
 
 ## Usage
 All scripts are standalone and can be run directly from the root of the repository.
-They expects ethz-cil dataset which can be found in [Kaggle](https://www.kaggle.com/competitions/ethz-cil-monocular-depth-estimation-2025)
+They expects ETHZ-CIL dataset under dataset directory which can be found in [Kaggle](https://www.kaggle.com/competitions/ethz-cil-monocular-depth-estimation-2025)
 
 ## Pretrained Model
 
 You can download our pretrained Dual U-Net model from the [Drive link](https://drive.google.com/file/d/191x6BNy5NZ6b7H2NDzGZ0ELJ2VZHFO-K/view?usp=share_link).
 
-## Citation
+## References
 
 ```bibtex
 
