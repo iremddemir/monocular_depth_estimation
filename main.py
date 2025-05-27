@@ -136,10 +136,12 @@ def main():
             f.write(f"{name}: {value:.4f}\n")
 
     """
+    sample_dir = os.path.join(results_dir, config.eval.sample_output_dir)
+    ensure_dir(sample_dir)
 
     # Generate predictions for the test set
     print("Generating predictions for test set...")
-    generate_test_predictions(model, test_loader, DEVICE, predictions_dir)
+    generate_test_predictions(model, test_loader, DEVICE, predictions_dir, sample_output_dir=sample_dir, postprocess=config.eval.postprocess)
     
     print(f"Results saved to {results_dir}")
     print(f"All test depth map predictions saved to {predictions_dir}")

@@ -29,6 +29,8 @@ eval:
   mc_dropout: True
   mc_samples: 50
   save_uncertainty_maps: True
+  postprocess: False
+  sample_output_dir: 'samples_mc_no_postprocess'
 
 # Model settings
 model:

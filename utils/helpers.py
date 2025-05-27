@@ -8,6 +8,7 @@ import random
 import torch.nn.functional as F
 import numpy as np
 from PIL import Image
+import matplotlib.pyplot as plt
 
 # This function converts a dictionary to a SimpleNamespace object recursively.
 def dict_to_namespace(d):
@@ -269,6 +270,79 @@ def compute_smoothness_loss(predicted_depth, input_image):
 # Visualisation
 def normalize_for_vis(tensor, vmin=0.0, vmax=10.0):
     return torch.clamp((tensor - vmin) / (vmax - vmin + 1e-6), 0.0, 1.0)
+
+def visualize_prediction(rgb, depth, save_path, uncertainties=None):
+    plt.figure(figsize=(12, 4))
+    ncols = 1 + (1 if rgb is not None else 0) + (len(uncertainties) if uncertainties else 0)
+
+    idx = 1
+    if rgb is not None:
+        plt.subplot(1, ncols, idx)
+
+        # ✅ De-normalize (adjust if needed!)
+        mean = torch.tensor([0.485, 0.456, 0.406], device=rgb.device)[:, None, None]
+        std = torch.tensor([0.229, 0.224, 0.225], device=rgb.device)[:, None, None]
+        rgb_denorm = (rgb * std + mean).clamp(0, 1)
+
+        rgb_np = TF.to_pil_image(rgb_denorm.cpu())
+        plt.imshow(rgb_np)
+        plt.title("RGB Input")
+        plt.axis('off')
+        idx += 1
+
+    plt.subplot(1, ncols, idx)
+    plt.imshow(depth, cmap='inferno')
+    plt.title("Predicted Depth")
+    plt.axis('off')
+    idx += 1
+
+    if uncertainties:
+        for key, value in uncertainties.items():
+            plt.subplot(1, ncols, idx)
+            plt.imshow(value, cmap='magma')
+            plt.title(f"{key.capitalize()} Uncertainty")
+            plt.axis('off')
+            idx += 1
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150)
+    plt.close()
+
+# postprocess depth map
+def postprocess_depth(depth: np.ndarray, rgb: np.ndarray = None, uncertainty: np.ndarray = None) -> np.ndarray:
+    """Applies uncertainty-guided fusion, guided filtering, and denoising to depth map."""
+    
+    # --- 1. Clamp depth values ---
+    depth = np.clip(depth, 0.01, 10.0)
+
+    # --- 2. Uncertainty-guided fusion (optional) ---
+    if uncertainty is not None:
+        weight = np.exp(-uncertainty)
+        depth = weight * depth + (1 - weight) * cv2.medianBlur(depth, 5)  # fallback: smooth prior
+
+    # --- 3. Median filter ---
+    depth = cv2.medianBlur(depth.astype(np.float32), ksize=5)
+
+    # --- 4. Bilateral filter ---
+    depth = cv2.bilateralFilter(depth, d=9, sigmaColor=75, sigmaSpace=75)
+
+    # --- 5. Guided filter (if RGB is available) ---
+    if rgb is not None:
+        try:
+            import cv2.ximgproc as xip
+            rgb_uint8 = np.clip((rgb * 255).astype(np.uint8), 0, 255)  # Convert to 0–255
+            if rgb_uint8.shape[0] == 3:  # CHW -> HWC
+                rgb_uint8 = np.transpose(rgb_uint8, (1, 2, 0))
+
+            depth_guide = xip.guidedFilter(guide=rgb_uint8, src=depth.astype(np.float32),
+                                           radius=9, eps=1e-2)
+            depth = depth_guide
+        except ImportError:
+            print("Guided filter not available (cv2.ximgproc). Skipping...")
+
+    return depth
+
+
 
 # not used
 def training_step_with_mc(model, x, y, T=5, criterion=aleatoric_loss):
