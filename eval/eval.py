@@ -5,7 +5,7 @@ import os
 import sys
 import matplotlib.pyplot as plt
 import torch.nn as nn
-from utils.helpers import load_config, predict_mc_dropout, ensure_dir
+from utils.helpers import load_config, predict_mc_dropout, ensure_dir, update_metrics, postprocess_depth
 
 # Load configuration
 config = load_config()
@@ -27,6 +27,9 @@ def evaluate_model(model, val_loader, device, results_dir, mc_predictions=False,
     total_samples = 0
     target_shape = None
     save_uncertainty_maps = getattr(config.eval, "save_uncertainty_maps", False)
+
+    metrics_raw = dict(mae=0.0, rmse=0.0, rel=0.0, delta1=0.0, delta2=0.0, delta3=0.0, sirmse=0.0)
+    metrics_post = dict(mae=0.0, rmse=0.0, rel=0.0, delta1=0.0, delta2=0.0, delta3=0.0, sirmse=0.0)
 
     with torch.no_grad():
         for inputs, targets, filenames in tqdm(val_loader, desc="Evaluating", dynamic_ncols=True, disable=not sys.stdout.isatty()):
@@ -65,32 +68,52 @@ def evaluate_model(model, val_loader, device, results_dir, mc_predictions=False,
                 )
 
             # Calculate metrics
-            abs_diff = torch.abs(mean_pred - targets)
-            mae += torch.sum(abs_diff).item()
-            rmse += torch.sum(torch.pow(abs_diff, 2)).item()
-            rel += torch.sum(abs_diff / (targets + 1e-6)).item()
-            
-            # Scale-invariant RMSE
+            # --- RAW metrics ---
+            update_metrics(metrics_raw, mean_pred, targets)
+
+            # siRMSE (raw)
             for i in range(batch_size):
                 pred_np = mean_pred[i].cpu().squeeze().numpy()
                 target_np = targets[i].cpu().squeeze().numpy()
-                EPSILON = 1e-6
 
+                EPSILON = 1e-6
                 valid_target = target_np > EPSILON
                 if not np.any(valid_target):
                     continue
-
                 target_valid = target_np[valid_target]
                 pred_valid = np.where(pred_np[valid_target] > EPSILON, pred_np[valid_target], EPSILON)
-
                 diff = np.log(pred_valid) - np.log(target_valid)
                 diff_mean = np.mean(diff)
-                sirmse += np.sqrt(np.mean((diff - diff_mean) ** 2))
+                metrics_raw["sirmse"] += np.sqrt(np.mean((diff - diff_mean) ** 2))
 
-            max_ratio = torch.max(mean_pred / (targets + 1e-6), targets / (mean_pred + 1e-6))
-            delta1 += torch.sum(max_ratio < 1.25).item()
-            delta2 += torch.sum(max_ratio < 1.25**2).item()
-            delta3 += torch.sum(max_ratio < 1.25**3).item()
+            # --- Postprocessing ---
+            for i in range(batch_size):
+                raw_pred_np = mean_pred[i].cpu().squeeze().numpy()
+
+                # Uncertainty (if available)
+                uncertainty_np = None
+                if aleatoric_uncertainty is not None:
+                    uncertainty_np = aleatoric_uncertainty[i].cpu().squeeze().numpy()
+                elif epistemic_uncertainty is not None:
+                    uncertainty_np = epistemic_uncertainty[i].cpu().squeeze().numpy()
+
+                rgb_np = inputs[i].cpu().numpy() if inputs.shape[1] == 3 else None
+                post_pred_np = postprocess_depth(raw_pred_np, rgb=rgb_np, uncertainty=uncertainty_np)
+                post_pred_tensor = torch.tensor(post_pred_np, device=targets.device).unsqueeze(0).unsqueeze(0)
+
+                update_metrics(metrics_post, post_pred_tensor, targets[i:i+1])
+
+                # siRMSE (postprocessed)
+                target_np = targets[i].cpu().squeeze().numpy()
+                valid_target = target_np > EPSILON
+                if not np.any(valid_target):
+                    continue
+                target_valid = target_np[valid_target]
+                pred_valid = np.where(post_pred_np[valid_target] > EPSILON, post_pred_np[valid_target], EPSILON)
+                diff = np.log(pred_valid) - np.log(target_valid)
+                diff_mean = np.mean(diff)
+                metrics_post["sirmse"] += np.sqrt(np.mean((diff - diff_mean) ** 2))
+
             
             # Save predictions and uncertainty maps
             if total_samples <= 5 * batch_size:
@@ -139,6 +162,32 @@ def evaluate_model(model, val_loader, device, results_dir, mc_predictions=False,
 
         torch.cuda.empty_cache()
 
+    def finalize(m):
+        total_pixels = total_samples * target_shape[1] * target_shape[2] * target_shape[3]
+        return {
+            'MAE': m["mae"] / total_pixels,
+            'RMSE': np.sqrt(m["rmse"] / total_pixels),
+            'REL': m["rel"] / total_pixels,
+            'Delta1': m["delta1"] / total_pixels,
+            'Delta2': m["delta2"] / total_pixels,
+            'Delta3': m["delta3"] / total_pixels,
+            'siRMSE': m["sirmse"] / total_samples
+        }
+
+    raw_metrics = finalize(metrics_raw)
+    post_metrics = finalize(metrics_post)
+
+    print("\n📊 Metrics BEFORE Postprocessing:")
+    for k, v in raw_metrics.items():
+        print(f"  {k}: {v:.4f}")
+
+    print("\n📈 Metrics AFTER Postprocessing:")
+    for k, v in post_metrics.items():
+        print(f"  {k}: {v:.4f}")
+
+    return raw_metrics
+
+    """
     total_pixels = target_shape[1] * target_shape[2] * target_shape[3]
     metrics = {
         'MAE': mae / (total_samples * total_pixels),
@@ -151,3 +200,4 @@ def evaluate_model(model, val_loader, device, results_dir, mc_predictions=False,
     }
 
     return metrics
+    """

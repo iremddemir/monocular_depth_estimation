@@ -345,8 +345,17 @@ def postprocess_depth(depth: np.ndarray, rgb: np.ndarray = None, uncertainty: np
     """
     return depth
 
+# for eval comparison
+def update_metrics(metrics, pred, target):
+    abs_diff = torch.abs(pred - target)
+    metrics["mae"] += torch.sum(abs_diff).item()
+    metrics["rmse"] += torch.sum(torch.pow(abs_diff, 2)).item()
+    metrics["rel"] += torch.sum(abs_diff / (target + 1e-6)).item()
 
-
+    max_ratio = torch.max(pred / (target + 1e-6), target / (pred + 1e-6))
+    metrics["delta1"] += torch.sum(max_ratio < 1.25).item()
+    metrics["delta2"] += torch.sum(max_ratio < 1.25**2).item()
+    metrics["delta3"] += torch.sum(max_ratio < 1.25**3).item()
 
 # not used
 def training_step_with_mc(model, x, y, T=5, criterion=aleatoric_loss):

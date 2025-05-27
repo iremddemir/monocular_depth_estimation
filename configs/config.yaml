@@ -27,10 +27,10 @@ train:
 # Evaluation settings
 eval:
   mc_dropout: True
-  mc_samples: 50
+  mc_samples: 20
   save_uncertainty_maps: True
   postprocess: True
-  sample_output_dir: 'samples_mc_postprocess_nogf'
+  sample_output_dir: 'samples_MC_postprocess_nogf'
 
 # Model settings
 model:

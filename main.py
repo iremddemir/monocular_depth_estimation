@@ -120,7 +120,7 @@ def main():
     model.load_state_dict(torch.load(os.path.join(results_dir, 'best_model.pth')))
     print("Loading the best model for evaluation...")
     
-    
+    """
     # Evaluate the model on validation set
     print("Evaluating model on validation set...")
     metrics = evaluate_model(model, val_loader, DEVICE, results_dir, mc_predictions=MC_DROPOUT)
@@ -145,6 +145,6 @@ def main():
     
     print(f"Results saved to {results_dir}")
     print(f"All test depth map predictions saved to {predictions_dir}")
-
+    """
 if __name__ == '__main__':
     main()
