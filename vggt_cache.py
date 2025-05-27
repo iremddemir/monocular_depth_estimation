@@ -3,13 +3,14 @@ import torch
 import numpy as np
 import cv2
 from tqdm import tqdm
+
 from vggt.models.vggt import VGGT
 from vggt.utils.load_fn import load_and_preprocess_images
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
 
-ROOT_DIR = "ethz-cil"
+ROOT_DIR = "data"
 CACHE_DIR = os.path.join(ROOT_DIR, "vggt_preds_cache")
 os.makedirs(os.path.join(CACHE_DIR, "train"), exist_ok=True)
 os.makedirs(os.path.join(CACHE_DIR, "test"), exist_ok=True)

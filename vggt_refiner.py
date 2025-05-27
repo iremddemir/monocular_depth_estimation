@@ -9,7 +9,7 @@ from datetime import datetime
 from vggt.models.vggt import VGGT
 from vggt.utils.load_fn import load_and_preprocess_images
 
-ROOT_DIR = "ethz-cil"
+ROOT_DIR = "data"
 CACHE_DIR = os.path.join(ROOT_DIR, "vggt_preds_cache")
 EXPERIMENT_ROOT = os.path.join(ROOT_DIR, "experiments")
 os.makedirs(EXPERIMENT_ROOT, exist_ok=True)
