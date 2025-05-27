@@ -1,0 +1,52 @@
+# General settings
+seed: 42
+
+# Data settings
+data:
+  data_dir: 'ethz-cil-monocular-depth-estimation-2025'
+
+  batch_size: 8 #30 for DropoutUnet #24 AttentionUnet34
+  num_workers: 8
+  pin_memory: True
+  input_size: [426, 560]
+
+  validation_split: 0.15
+
+# Training settings
+train:
+  num_epochs: 20
+  learning_rate: 0.00001
+  weight_decay: 0.0001
+  mc_training: False
+  use_smooth_loss: True
+  smooth_loss_weight: 0.001
+
+  early_stopping:
+    patience: 5
+
+# Evaluation settings
+eval:
+  mc_dropout: True
+  mc_samples: 50
+  save_uncertainty_maps: True
+
+# Model settings
+model:
+  pretrained: False
+  model_name: 'DropoutUNet-ResNet101-p02'
+  dropout_p: 0.2
+  deep_supervision: True
+
+# Checkpointing
+checkpoint:
+  save_dir: ./checkpoints
+  save_interval: 5
+
+
+# Logging settings
+logging:
+  # tensorboard_dir: ./tensorboard/DropoutUnet-p02-attentiontuned
+  tensorboard_dir: ./tensorboard/DropoutUnet-p02
+  log_dir: ./logs
+  log_interval: 10
+  tensorboard: True
