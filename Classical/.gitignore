@@ -1,0 +1,6 @@
+ethz-cil-monocular-depth-estimation-2025/test
+ethz-cil-monocular-depth-estimation-2025/train
+ethz-cil-monocular-depth-estimation-2025
+tensorboard/
+CIL/
+old_structure/
